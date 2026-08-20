@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+title: PycnoTide
+message: "If you use PycnoTide, please cite this software and the source observations."
+type: software
+authors:
+  - family-names: Huang
+    given-names: Huan
+version: 0.1.0.dev0
+date-released: 2026-08-20
+license: BSD-3-Clause
+repository-code: "https://github.com/SharknadoBear/pycnotide"
+
