@@ -43,4 +43,3 @@ def get_constituents(names: tuple[str, ...] | list[str]) -> tuple[Constituent, .
     if len({item.name for item in result}) != len(result):
         raise ValueError("Constituent names must be unique")
     return tuple(result)
-

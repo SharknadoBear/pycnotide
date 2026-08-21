@@ -34,7 +34,6 @@ class HarmonicResult:
     resolved_constituent: np.ndarray
     warnings: tuple[str, ...] = ()
     metadata: dict[str, Any] = field(default_factory=dict)
-
     def to_xarray(self):
         """Convert to an xarray Dataset without making xarray a core dependency."""
 
@@ -98,4 +97,3 @@ class PhaseFitResult:
     n_observations: int
     message: str
     metadata: dict[str, Any] = field(default_factory=dict)
-

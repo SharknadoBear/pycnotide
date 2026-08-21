@@ -31,4 +31,3 @@ def block_bootstrap_indices(
             pieces.append(members[int(rng.integers(len(members)))])
         output[i] = np.concatenate(pieces)[: time.size]
     return output
-

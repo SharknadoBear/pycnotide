@@ -95,4 +95,3 @@ def observation_weights(
     if np.any(~np.isfinite(weights)) or np.any(weights < 0) or not np.any(weights > 0):
         raise ValueError("weights must be finite, nonnegative, and contain a positive value")
     return weights * (n / np.sum(weights))
-
