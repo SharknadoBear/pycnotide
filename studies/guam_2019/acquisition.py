@@ -210,7 +210,7 @@ def download_podaac(config: dict, repository: Path, inventory: dict) -> list[Pat
                 "-d",
                 str(target),
                 "-gr",
-                record["filename"],
+                record["granule_ur"],
                 "-e",
                 ".nc",
             ],
