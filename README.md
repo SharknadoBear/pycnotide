@@ -29,6 +29,10 @@ result = pycnotide.solve(
 prediction = pycnotide.reconstruct(result, time=time_out, depth=depth)
 ```
 
+`reconstruct` also accepts exact-track timestamp matrices shaped
+`(observation, depth)` and depth-dependent phase offsets. Unsupported paths stay
+missing throughout linear and isopycnal-remap products.
+
 The Guam campaign workflow is under `studies/guam_2019`. Raw PO.DAAC and HYCOM
 files are never committed. The current-aware demonstration is a straight-ray eikonal
 sensitivity, not bent-ray tracing or proof of a resolution-only/model-only cause.
@@ -36,8 +40,7 @@ sensitivity, not bent-ray tracing or proof of a resolution-only/model-only cause
 ## Development
 
 ```text
-python -m pip install -e ".[test]"
+python -m pip install -e ".[test,guam]"
 pytest
 ruff check .
 ```
-

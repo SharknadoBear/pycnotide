@@ -1,0 +1,55 @@
+{
+  "schema": "pycnotide_guam_2019_v1",
+  "collection": {
+    "short_name": "SEAGLIDER_GUAM_2019",
+    "concept_id": "C2151536874-POCLOUD",
+    "level": 3,
+    "expected_granules": 3
+  },
+  "hycom": {
+    "source": "http://tds.hycom.org/thredds/dodsC/GLBy0.08/expt_93.0/uv3z",
+    "catalog": "https://tds.hycom.org/thredds/catalogs/GLBy0.08/expt_93.0_uv3z.html",
+    "transport_note": "Official HYCOM OPeNDAP over HTTP because Windows libnetcdf fails the HTTPS DAP handshake; schema and data are from the same tds.hycom.org archive.",
+    "variables": ["water_u", "water_v"],
+    "start": "2019-09-30T12:00:00Z",
+    "end": "2020-01-17T15:00:00Z",
+    "bbox": [143.38, 13.14, 144.87, 14.97],
+    "depth": [0.0, 1000.0],
+    "chunk_target_mib": 2,
+    "dap_timeout_seconds": 180,
+    "max_retries": 5,
+    "retry_delay_seconds": 5,
+    "backoff": 2
+  },
+  "analysis": {
+    "epsg": 32655,
+    "constituents": ["M2", "S2", "N2", "K1", "O1"],
+    "phase_constituents": ["M2", "K1"],
+    "depth_min_m": 0.0,
+    "depth_max_m": 1000.0,
+    "phase_depth_min_m": 100.0,
+    "phase_depth_max_m": 900.0,
+    "phase_fit_depth_stride_m": 10.0,
+    "min_density_gradient_kg_m4": 1e-5,
+    "background": "linear_space_time",
+    "bootstrap_resamples": 1000,
+    "bootstrap_block_hours": 48,
+    "bootstrap_seed": 20191003,
+    "window_days": 30,
+    "window_step_days": 15,
+    "current_average_days": 5,
+    "current_vertical_support_fraction": 0.8,
+    "current_projected_grid_m": 2000.0,
+    "phase_integration_step_m": 2000.0,
+    "phase_speed_bounds_m_s": [0.25, 5.0],
+    "direction_bounds_deg": [0.0, 360.0],
+    "reference_time": "2019-10-03T00:00:00Z"
+  },
+  "paths": {
+    "glider_raw": "data/raw/podaac/SEAGLIDER_GUAM_2019",
+    "hycom_raw": "data/raw/hycom/guam_2019_uv3z.nc",
+    "processed": "data/processed/guam_2019",
+    "runs": "studies/guam_2019/runs",
+    "outputs": "studies/guam_2019/outputs"
+  }
+}
