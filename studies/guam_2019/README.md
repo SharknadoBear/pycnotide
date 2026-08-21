@@ -26,6 +26,11 @@ python studies/guam_2019/guam_internal_tide.py \
 
 The current-aware result is a straight-ray, frozen-background eikonal sensitivity.
 It is not bent-ray tracing, full modal dynamics, or a direct SCHISM validation.
+Bearing and effective-speed optimization uses deterministic native levels spaced
+10 m apart over 100--900 m so the 1 m Level-3 grid is not treated as 801 independent
+vertical replicates. Selected observations retain their exact sample times and
+underwater positions; accepted phase and reconstruction products are then evaluated
+on every supported native depth level.
 The report includes the supplied density reference, stratification/displacement QA,
 harmonic uncertainty, an approximate glider/HYCOM current comparison, sampled
 bearing-speed objective surfaces, held-out skill, and both reconstruction cases.

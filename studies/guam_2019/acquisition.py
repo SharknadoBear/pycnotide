@@ -10,6 +10,7 @@ import subprocess
 import sys
 import urllib.request
 from pathlib import Path
+from urllib.parse import urlparse
 
 CMR_GRANULES = "https://cmr.earthdata.nasa.gov/search/granules.umm_json"
 
@@ -145,8 +146,27 @@ def run_hycom_inventory(config: dict, run_dir: Path) -> Path:
     return output
 
 
+def _hycom_dap_environment(config: dict, run_dir: Path) -> dict[str, str]:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    source_host = urlparse(config["hycom"]["source"]).hostname
+    if not source_host:
+        raise ValueError("HYCOM source URL has no hostname")
+    dap_timeout = int(config["hycom"].get("dap_timeout_seconds", 180))
+    if dap_timeout <= 0:
+        raise ValueError("dap_timeout_seconds must be positive")
+    daprc = run_dir / "hycom_daprc"
+    daprc.write_text(
+        f"[{source_host}]HTTP.TIMEOUT={dap_timeout}\n",
+        encoding="utf-8",
+    )
+    environment = os.environ.copy()
+    environment["DAPRCFILE"] = str(daprc.resolve())
+    return environment
+
+
 def run_hycom_fetch(config: dict, repository: Path, run_dir: Path) -> Path:
     script = locate_hycom_fetcher()
+    environment = _hycom_dap_environment(config, run_dir)
     request = run_dir / "hycom_request.json"
     write_hycom_request(config, request)
     plan = run_dir / "hycom_download_plan.json"
@@ -163,6 +183,7 @@ def run_hycom_fetch(config: dict, repository: Path, run_dir: Path) -> Path:
             str(plan),
         ],
         check=True,
+        env=environment,
     )
     output = (repository / config["paths"]["hycom_raw"]).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -179,6 +200,7 @@ def run_hycom_fetch(config: dict, repository: Path, run_dir: Path) -> Path:
             str(output),
         ],
         check=True,
+        env=environment,
     )
     health = run_dir / "health_check.json"
     if not health.is_file():

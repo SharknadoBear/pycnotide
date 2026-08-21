@@ -9,6 +9,7 @@ import pytest
 import xarray as xr
 
 from studies.guam_2019.acquisition import (
+    _hycom_dap_environment,
     download_podaac,
     file_checksum,
     write_hycom_request,
@@ -230,6 +231,18 @@ def test_request_and_protected_download_gate(tmp_path, monkeypatch):
     monkeypatch.delenv("PYCNOTIDE_EARTHDATA_ROTATED", raising=False)
     with pytest.raises(RuntimeError, match="rotate"):
         download_podaac(config, tmp_path, {"granules": []})
+
+
+def test_hycom_dap_timeout_is_host_scoped_and_credential_free(tmp_path):
+    config = _config(tmp_path)
+    config["hycom"]["dap_timeout_seconds"] = 180
+    environment = _hycom_dap_environment(config, tmp_path / "hycom_run")
+    path = Path(environment["DAPRCFILE"])
+    assert path.read_text(encoding="utf-8") == "[tds.hycom.org]HTTP.TIMEOUT=180\n"
+    assert "password" not in path.read_text(encoding="utf-8").lower()
+    config["hycom"]["dap_timeout_seconds"] = 0
+    with pytest.raises(ValueError, match="positive"):
+        _hycom_dap_environment(config, tmp_path / "invalid")
 
 
 def test_config_rejects_secret_fields_and_preflight_records_no_value(tmp_path, monkeypatch):

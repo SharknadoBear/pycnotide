@@ -8,7 +8,9 @@ and reports. Native and derived scientific data are ignored by Git.
 The solver accepts arrays, builds an explicit nuisance-plus-harmonic design matrix,
 solves it by weighted SVD, and returns immutable result containers. Phase models
 only supply phase offsets; they do not alter astronomical frequencies or silently
-modify the local regression. Reconstruction consumes the same coefficient convention.
+modify the local regression. Current-aware straight-ray quadrature is evaluated in
+bounded point batches; batching changes peak memory only, not path nodes or the
+trapezoidal integral. Reconstruction consumes the same coefficient convention.
 
 The Guam adapter writes three layers of products: normalized observation/current
 inputs, harmonic and phase-sensitivity diagnostics, and reference-location plus
