@@ -35,7 +35,15 @@ guam = [
   "jinja2>=3.1",
   "podaac-data-subscriber>=1.15",
 ]
-test = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "xarray>=2024.1", "build>=1.2"]
+test = [
+  "pytest>=8",
+  "pytest-cov>=5",
+  "ruff>=0.6",
+  "xarray>=2024.1",
+  "build>=1.2",
+  # podaac-data-subscriber currently constrains packaging<24.
+  "wheel<0.43",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pycnotide"]

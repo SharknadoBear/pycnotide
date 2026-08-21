@@ -10,3 +10,9 @@ solves it by weighted SVD, and returns immutable result containers. Phase models
 only supply phase offsets; they do not alter astronomical frequencies or silently
 modify the local regression. Reconstruction consumes the same coefficient convention.
 
+The Guam adapter writes three layers of products: normalized observation/current
+inputs, harmonic and phase-sensitivity diagnostics, and reference-location plus
+exact-track reconstructions. Both current scenarios are evaluated on an explicit
+shared observational-support mask. Optimizer evaluation samples are retained so the
+bearing-speed identifiability surface is inspectable rather than reduced to one best
+point.
