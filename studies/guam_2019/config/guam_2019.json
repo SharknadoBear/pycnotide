@@ -15,7 +15,7 @@
     "end": "2020-01-17T15:00:00Z",
     "bbox": [143.38, 13.14, 144.87, 14.97],
     "depth": [0.0, 1000.0],
-    "chunk_target_mib": 32,
+    "chunk_target_mib": 8,
     "max_retries": 5,
     "retry_delay_seconds": 5,
     "backoff": 2
