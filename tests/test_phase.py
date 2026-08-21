@@ -117,6 +117,37 @@ def test_uniform_and_piecewise_current_path_integrals():
     assert np.isnan(pycnotide.current_aware_wavenumber(omega, f, speed, -5.0))
 
 
+def test_current_path_batching_preserves_phase_integrals():
+    reference_time = np.datetime64("2019-10-03")
+    time = np.full(11, reference_time)
+    x = np.linspace(1000.0, 9000.0, time.size)
+    y = np.linspace(-500.0, 500.0, time.size)
+    f = float(pycnotide.coriolis_parameter(14.0))
+    current = pycnotide.RegularGridCurrent(
+        np.asarray([0.0, 3600.0]),
+        np.asarray([-2000.0, 2000.0]),
+        np.asarray([0.0, 10_000.0]),
+        np.full((2, 2, 2), 0.12),
+        np.full((2, 2, 2), -0.03),
+    )
+    common = {
+        "direction_deg": {"M2": 90.0},
+        "phase_speed_m_s": {"M2": 2.1},
+        "reference_position": (0.0, 0.0),
+        "coriolis_rad_s": f,
+        "current": current,
+        "current_reference_time": reference_time,
+        "integration_step_m": 2000.0,
+    }
+    unbatched = pycnotide.StraightRayEikonalPhase(
+        **common, max_path_points=1_000_000
+    ).offsets(("M2",), time, x, y, reference_time)
+    batched = pycnotide.StraightRayEikonalPhase(
+        **common, max_path_points=5
+    ).offsets(("M2",), time, x, y, reference_time)
+    np.testing.assert_allclose(batched, unbatched, rtol=1e-13, atol=1e-13)
+
+
 def test_variable_projection_recovers_zero_current_wave():
     rng = np.random.default_rng(8)
     n = 90

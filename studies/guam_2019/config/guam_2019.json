@@ -28,6 +28,7 @@
     "depth_max_m": 1000.0,
     "phase_depth_min_m": 100.0,
     "phase_depth_max_m": 900.0,
+    "phase_fit_depth_stride_m": 10.0,
     "min_density_gradient_kg_m4": 1e-5,
     "background": "linear_space_time",
     "bootstrap_resamples": 1000,

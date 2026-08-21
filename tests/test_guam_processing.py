@@ -14,6 +14,7 @@ from studies.guam_2019.acquisition import (
     write_hycom_request,
 )
 from studies.guam_2019.analysis import (
+    _phase_fit_depth_mask,
     fit_harmonics,
     fit_phase_sensitivity,
     reconstruct_products,
@@ -158,6 +159,14 @@ def test_full_dive_metadata_maps_to_descent_ascent_half_profiles():
     invalid = dataset.assign(u_dive=(("other",), np.asarray([0.1, 0.2])))
     with pytest.raises(ValueError, match="cannot map"):
         _profile_vector(invalid, "u_dive", "profile", "depth")
+
+
+def test_phase_fit_depth_mask_selects_native_levels_without_smoothing():
+    depth = np.asarray([95.0, 100.0, 104.0, 110.0, 119.0, 120.0, 901.0])
+    mask = _phase_fit_depth_mask(depth, 100.0, 900.0, 10.0)
+    np.testing.assert_array_equal(depth[mask], [100.0, 110.0, 120.0])
+    with pytest.raises(ValueError, match="stride"):
+        _phase_fit_depth_mask(depth, 100.0, 900.0, 0.0)
 
 
 def test_campaign_fit_and_reconstruction_netcdf_interfaces(tmp_path):

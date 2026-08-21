@@ -33,6 +33,29 @@ def _paths(config: dict, repository: Path) -> tuple[Path, Path]:
     return processed, outputs
 
 
+def _phase_fit_depth_mask(
+    depth: np.ndarray, lower_m: float, upper_m: float, stride_m: float
+) -> np.ndarray:
+    """Select deterministic native levels without altering their values."""
+
+    values = np.asarray(depth, dtype=float)
+    if values.ndim != 1 or stride_m <= 0:
+        raise ValueError("depth must be one-dimensional and stride_m must be positive")
+    candidates = np.flatnonzero(
+        np.isfinite(values) & (values >= lower_m) & (values <= upper_m)
+    )
+    mask = np.zeros(values.size, dtype=bool)
+    if candidates.size == 0:
+        return mask
+    last = -np.inf
+    tolerance = max(1.0, abs(stride_m)) * 1.0e-10
+    for index in candidates:
+        if values[index] - last >= stride_m - tolerance:
+            mask[index] = True
+            last = values[index]
+    return mask
+
+
 def _result_dataset(result: HarmonicResult):
     xr, _, _ = _imports()
     coords = {"constituent": list(result.constituents), "depth": result.depth}
@@ -385,14 +408,19 @@ def fit_phase_sensitivity(config: dict, repository: Path) -> Path:
     reference_time = as_datetime64_ns(config["analysis"]["reference_time"])
     current = _load_current(processed, reference_time)
     depth = glider.depth.values
-    use_depth = (depth >= config["analysis"]["phase_depth_min_m"]) & (
-        depth <= config["analysis"]["phase_depth_max_m"]
+    fit_depth = _phase_fit_depth_mask(
+        depth,
+        config["analysis"]["phase_depth_min_m"],
+        config["analysis"]["phase_depth_max_m"],
+        config["analysis"].get("phase_fit_depth_stride_m", 1.0),
     )
-    values = glider.displacement.values[:, use_depth]
-    time = glider.sample_time.values[:, use_depth]
-    x = glider.x.values[:, use_depth]
-    y = glider.y.values[:, use_depth]
-    latitude = glider.latitude.values[:, use_depth]
+    if np.count_nonzero(fit_depth) < 3:
+        raise ValueError("Fewer than three native depth levels support phase fitting")
+    values = glider.displacement.values[:, fit_depth]
+    time = glider.sample_time.values[:, fit_depth]
+    x = glider.x.values[:, fit_depth]
+    y = glider.y.values[:, fit_depth]
+    latitude = glider.latitude.values[:, fit_depth]
     reference_position = (float(np.nanmedian(x)), float(np.nanmedian(y)))
     coriolis = float(pycnotide.coriolis_parameter(np.nanmedian(latitude)))
     profile_seconds = (
@@ -554,7 +582,7 @@ def fit_phase_sensitivity(config: dict, repository: Path) -> Path:
             scenario_phase[
                 scenario_names.index(scenario),
                 all_constituents.index(constituent),
-            ][:, use_depth]
+            ][:, fit_depth]
             for scenario, constituent in zip(scenarios, constituents, strict=True)
         ]
     )
@@ -609,7 +637,7 @@ def fit_phase_sensitivity(config: dict, repository: Path) -> Path:
             "harmonic_constituent": list(all_constituents),
             "profile": glider.profile.values,
             "depth": glider.depth.values,
-            "phase_depth": depth[use_depth],
+            "phase_depth": depth[fit_depth],
         },
         attrs={
             "schema": "pycnotide_current_phase_sensitivity_v1",
@@ -621,6 +649,14 @@ def fit_phase_sensitivity(config: dict, repository: Path) -> Path:
             "support_rule": (
                 "zero-current and HYCOM-current harmonic products use identical "
                 "finite observations"
+            ),
+            "phase_fit_depth_stride_m": config["analysis"].get(
+                "phase_fit_depth_stride_m", 1.0
+            ),
+            "phase_fit_sampling": (
+                "native depth levels selected at the configured spacing; exact sample "
+                "times and underwater positions retained; final phase evaluated at all "
+                "supported native levels"
             ),
         },
     ).to_netcdf(

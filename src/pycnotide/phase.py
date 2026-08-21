@@ -138,6 +138,7 @@ class StraightRayEikonalPhase:
     current: RegularGridCurrent | None = None
     current_reference_time: np.datetime64 = np.datetime64("1970-01-01T00:00:00", "ns")
     integration_step_m: float = 2000.0
+    max_path_points: int = 2_000_000
 
     def _one(self, name, time, x, y, reference_time):
         if name not in self.direction_deg or name not in self.phase_speed_m_s:
@@ -170,19 +171,33 @@ class StraightRayEikonalPhase:
         valid_distance = distance[finite]
         max_distance = float(np.max(np.abs(valid_distance)))
         segments = max(1, int(np.ceil(max_distance / self.integration_step_m)))
-        fraction = np.linspace(0.0, 1.0, segments + 1)[None, :]
-        q = valid_distance[:, None] * fraction
-        path_x = (flat_x[finite] - valid_distance * hx)[:, None] + q * hx
-        path_y = (flat_y[finite] - valid_distance * hy)[:, None] + q * hy
-        path_time = np.broadcast_to(flat_t[finite, None], path_x.shape)
-        u, v = self.current.sample(path_time, path_x, path_y)
-        along = u * hx + v * hy
-        k = current_aware_wavenumber(
-            omega, self.coriolis_rad_s, speed, along
-        )
-        supported = np.all(np.isfinite(k), axis=1)
-        integral = -trapezoid(k, q, axis=1)
-        output[valid_index[supported]] = integral[supported]
+        path_nodes = segments + 1
+        if self.max_path_points <= 0:
+            raise ValueError("max_path_points must be positive")
+        batch_size = max(1, int(self.max_path_points) // path_nodes)
+        fraction = np.linspace(0.0, 1.0, path_nodes)[None, :]
+        finite_x = flat_x[finite]
+        finite_y = flat_y[finite]
+        finite_t = flat_t[finite]
+        for start in range(0, valid_index.size, batch_size):
+            stop = min(start + batch_size, valid_index.size)
+            batch_distance = valid_distance[start:stop]
+            q = batch_distance[:, None] * fraction
+            path_x = (
+                finite_x[start:stop] - batch_distance * hx
+            )[:, None] + q * hx
+            path_y = (
+                finite_y[start:stop] - batch_distance * hy
+            )[:, None] + q * hy
+            path_time = np.broadcast_to(finite_t[start:stop, None], path_x.shape)
+            u, v = self.current.sample(path_time, path_x, path_y)
+            along = u * hx + v * hy
+            k = current_aware_wavenumber(
+                omega, self.coriolis_rad_s, speed, along
+            )
+            supported = np.all(np.isfinite(k), axis=1)
+            integral = -trapezoid(k, q, axis=1)
+            output[valid_index[start:stop][supported]] = integral[supported]
         return output.reshape(original_shape)
 
     def offsets(self, constituents, time, x, y, reference_time=None):
