@@ -32,14 +32,25 @@ def _profile_vector(ds, name: str, profile_dim: str, depth_dim: str) -> np.ndarr
     if name not in ds:
         return np.full(ds.sizes[profile_dim], np.nan)
     data = ds[name]
-    if profile_dim not in data.dims:
-        raise ValueError(f"{name} lacks the profile dimension")
-    if depth_dim in data.dims:
-        values = np.asarray(data.transpose(profile_dim, depth_dim).values, dtype=float)
-        return np.nanmedian(values, axis=1)
-    extra = [dim for dim in data.dims if dim != profile_dim]
-    values = np.asarray(data.transpose(profile_dim, *extra).values)
-    return values.reshape(ds.sizes[profile_dim], -1)[:, 0]
+    profile_count = ds.sizes[profile_dim]
+    if profile_dim in data.dims:
+        if depth_dim in data.dims:
+            values = np.asarray(data.transpose(profile_dim, depth_dim).values, dtype=float)
+            return np.nanmedian(values, axis=1)
+        extra = [dim for dim in data.dims if dim != profile_dim]
+        values = np.asarray(data.transpose(profile_dim, *extra).values)
+        return values.reshape(profile_count, -1)[:, 0]
+    # The Guam L3 files store dive summaries once per full dive, while their
+    # hydrographic matrices contain consecutive descent/ascent half profiles.
+    # Map each full-dive value onto that ordered pair, but reject any other
+    # unexplained shape instead of silently guessing.
+    values = np.asarray(data.values)
+    if values.ndim == 1 and values.size * 2 == profile_count:
+        return np.repeat(values, 2)
+    raise ValueError(
+        f"{name} lacks the profile dimension and cannot map "
+        f"{values.shape} onto {profile_count} half profiles"
+    )
 
 
 def _matrix_time_mean(values: np.ndarray) -> np.ndarray:
@@ -111,13 +122,17 @@ def preprocess_gliders(config: dict, repository: Path) -> Path:
         time = np.asarray(matrix("time")).astype("datetime64[ns]")
         t_flags = np.asarray(matrix("T_flags"), dtype=float)
         s_flags = np.asarray(matrix("S_flags"), dtype=float)
-        good = (
+        finite_observation = (
             np.isfinite(density)
             & np.isfinite(temperature_ref)
             & np.isfinite(salinity_ref)
             & np.isfinite(pressure)
             & np.isfinite(longitude)
             & np.isfinite(latitude)
+            & ~np.isnat(time)
+        )
+        good = (
+            finite_observation
             & (t_flags >= 1.0)
             & (s_flags >= 1.0)
         )
@@ -132,10 +147,18 @@ def preprocess_gliders(config: dict, repository: Path) -> Path:
         ) + 1000.0
         gradient = np.gradient(density_reference, depth, axis=1, edge_order=1)
         threshold = float(config["analysis"]["min_density_gradient_kg_m4"])
-        displacement = (density - density_reference) / gradient
+        density_all_finite = density.copy()
+        density_reference_all_finite = density_reference.copy()
+        displacement_all_finite = (density - density_reference) / gradient
+        displacement_all_finite[
+            ~finite_observation | ~np.isfinite(gradient) | (gradient < threshold)
+        ] = np.nan
+        interpolated_or_flagged = finite_observation & ~good
+        displacement = displacement_all_finite.copy()
         displacement[~good | ~np.isfinite(gradient) | (gradient < threshold)] = np.nan
         density[~good] = np.nan
         density_reference[~good] = np.nan
+        gradient[~good] = np.nan
         transformer = Transformer.from_crs(4326, config["analysis"]["epsg"], always_xy=True)
         x, y = transformer.transform(longitude, latitude)
         collections.append(
@@ -153,6 +176,10 @@ def preprocess_gliders(config: dict, repository: Path) -> Path:
                 "density_reference": density_reference,
                 "density_gradient": gradient,
                 "displacement": displacement,
+                "density_all_finite": density_all_finite,
+                "density_reference_all_finite": density_reference_all_finite,
+                "displacement_all_finite": displacement_all_finite,
+                "interpolated_or_flagged": interpolated_or_flagged,
                 "good": good,
                 "t_flags": t_flags,
                 "s_flags": s_flags,
@@ -166,7 +193,12 @@ def preprocess_gliders(config: dict, repository: Path) -> Path:
     assert common_depth is not None
     keys = collections[0].keys()
     merged = {key: np.concatenate([item[key] for item in collections], axis=0) for key in keys}
-    count = merged["density"].shape[0]
+    raw_count = merged["density"].shape[0]
+    keep = np.any(merged["good"], axis=1)
+    for key, values in merged.items():
+        if values.shape[0] == raw_count:
+            merged[key] = values[keep]
+    count = int(np.count_nonzero(keep))
     profile_id = np.asarray(
         [
             f"{g}_{int(i):05d}"
@@ -184,6 +216,19 @@ def preprocess_gliders(config: dict, repository: Path) -> Path:
             "density_reference": (("profile", "depth"), merged["density_reference"]),
             "density_gradient": (("profile", "depth"), merged["density_gradient"]),
             "displacement": (("profile", "depth"), merged["displacement"]),
+            "density_all_finite": (("profile", "depth"), merged["density_all_finite"]),
+            "density_reference_all_finite": (
+                ("profile", "depth"),
+                merged["density_reference_all_finite"],
+            ),
+            "displacement_all_finite": (
+                ("profile", "depth"),
+                merged["displacement_all_finite"],
+            ),
+            "interpolated_or_flagged": (
+                ("profile", "depth"),
+                merged["interpolated_or_flagged"],
+            ),
             "good_primary": (("profile", "depth"), merged["good"]),
             "temperature_flag": (("profile", "depth"), merged["t_flags"]),
             "salinity_flag": (("profile", "depth"), merged["s_flags"]),
@@ -207,8 +252,15 @@ def preprocess_gliders(config: dict, repository: Path) -> Path:
             "depth_positive": "down",
             "displacement_positive": "up",
             "crs": f"EPSG:{config['analysis']['epsg']}",
-            "primary_qc": "finite PD/T_ref/S_ref/P/position and T_flags,S_flags >= 1",
+            "primary_qc": (
+                "finite PD/T_ref/S_ref/P/time/position and T_flags,S_flags >= 1"
+            ),
             "profile_count": count,
+            "excluded_empty_profile_count": int(raw_count - count),
+            "sensitivity_fields": (
+                "*_all_finite retain finite L3 values regardless of the temperature/"
+                "salinity interpolation flags; they are excluded from primary fitting"
+            ),
         },
     )
     dataset.to_netcdf(output, engine="netcdf4")

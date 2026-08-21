@@ -20,7 +20,11 @@ from studies.guam_2019.analysis import (
     render_report,
 )
 from studies.guam_2019.guam_internal_tide import load_config, preflight
-from studies.guam_2019.processing import preprocess_gliders, preprocess_hycom
+from studies.guam_2019.processing import (
+    _profile_vector,
+    preprocess_gliders,
+    preprocess_hycom,
+)
 
 BASE_CONFIG = Path(__file__).parents[1] / "studies/guam_2019/config/guam_2019.json"
 
@@ -127,6 +131,8 @@ def test_glider_and_hycom_preprocessing(tmp_path):
         assert len(np.unique(glider.glider.values)) == 3
         assert np.isnan(glider.density.values[0, 2])
         assert np.isnan(glider.displacement.values[0, 2])
+        assert np.isfinite(glider.density_all_finite.values[0, 2])
+        assert glider.interpolated_or_flagged.values[0, 2]
         assert np.nanmedian(glider.density_reference.values) > 1000.0
         assert str(glider.attrs["depth_positive"]) == "down"
     with xr.open_dataset(current_output) as current:
@@ -136,6 +142,22 @@ def test_glider_and_hycom_preprocessing(tmp_path):
             speed[np.isfinite(speed)], np.hypot(0.1, 0.2), rtol=2e-5
         )
         assert current.attrs["vector_rotation"] == "east/north rotated to projected grid axes"
+
+
+def test_full_dive_metadata_maps_to_descent_ascent_half_profiles():
+    dataset = xr.Dataset(
+        {
+            "PD": (("profile", "depth"), np.ones((6, 2))),
+            "u_dive": (("dive",), np.asarray([0.1, 0.2, 0.3])),
+        }
+    )
+    np.testing.assert_allclose(
+        _profile_vector(dataset, "u_dive", "profile", "depth"),
+        [0.1, 0.1, 0.2, 0.2, 0.3, 0.3],
+    )
+    invalid = dataset.assign(u_dive=(("other",), np.asarray([0.1, 0.2])))
+    with pytest.raises(ValueError, match="cannot map"):
+        _profile_vector(invalid, "u_dive", "profile", "depth")
 
 
 def test_campaign_fit_and_reconstruction_netcdf_interfaces(tmp_path):

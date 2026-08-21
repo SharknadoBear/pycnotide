@@ -197,6 +197,16 @@ def download_podaac(config: dict, repository: Path, inventory: dict) -> list[Pat
         )
     executable = shutil.which("podaac-data-downloader")
     if executable is None:
+        # Directly invoking a virtual-environment Python does not necessarily add
+        # its Scripts/bin directory to PATH (notably on Windows).  The console
+        # entry point is still installed beside that interpreter.
+        scripts_dir = Path(sys.executable).resolve().parent
+        candidates = [
+            scripts_dir / "podaac-data-downloader",
+            scripts_dir / "podaac-data-downloader.exe",
+        ]
+        executable = next((str(path) for path in candidates if path.is_file()), None)
+    if executable is None:
         raise RuntimeError("podaac-data-downloader is unavailable; install the Guam extra")
     target = (repository / config["paths"]["glider_raw"]).resolve()
     target.mkdir(parents=True, exist_ok=True)
